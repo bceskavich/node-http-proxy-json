@@ -89,9 +89,14 @@ function handleCompressed(res, _write, _end, unzip, zip, callback) {
  * handle Uncompressed
  */
 function handleUncompressed(res, _write, _end, callback) {
+    var initialData;
+    var responseWritten = false;
     var buffer = new BufferHelper();
+
     // Rewrite response method and get the content.
     res.write = function (data) {
+        responseWritten = true;
+        initialData = data;
         buffer.concat(data);
     };
 
@@ -99,20 +104,23 @@ function handleUncompressed(res, _write, _end, callback) {
         var body;
         try {
             body = JSON.parse(buffer.toBuffer().toString());
-        } catch (e) {
-            console.log('JSON.parse error:', e);
-        }
 
-        // Custom modified logic
-        if (typeof callback === 'function') {
-            body = callback(body);
-        }
+            // Custom modified logic
+            if (typeof callback === 'function') {
+                body = callback(body);
+            }
 
-        // Converts the JSON to buffer.
-        body = new Buffer(JSON.stringify(body));
+            // Converts the JSON to buffer.
+            body = new Buffer(JSON.stringify(body));
+        } catch (_e) {
+            // If there's an error parsing the body, just write the initial data
+            body = initialData;
+        }
 
         // Call the response method
-        _write.call(res, body);
+        if (responseWritten) {
+            _write.call(res, body);
+        }
         _end.call(res);
     };
 }
